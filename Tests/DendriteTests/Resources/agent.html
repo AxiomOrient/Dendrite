@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>차세대 AI 기술 스택 대시보드</title>
+
+    <!-- Chosen Palette: Calm Tech -->
+
+    <!-- Application Structure Plan: The application is designed as a thematic, single-page dashboard to guide users from high-level strategic decisions to specific technical choices. The structure is not linear but based on user goals: 1. **Intro & Why**: Hooks the user with the core problem. 2. **Language Guide**: An interactive core for comparing Python, Rust, and Go visually. 3. **Tech Stack Explorer**: A filterable gallery of frameworks and tools, allowing users to find what they need based on language or architectural layer. 4. **LLM Enhancement Flow**: A visual, interactive flowchart to demystify complex concepts like RAG and PEFT. 5. **Architecture & Tools**: Visual diagrams for architectural patterns and interactive comparisons for MLOps platforms. This non-linear, goal-oriented structure empowers users to explore the report's rich content based on their own interests and needs, enhancing usability and comprehension over a simple text document. -->
+
+    <!-- Visualization & Content Choices: 
+
+        - Report Info: Table 1 (Language Comparison) -> Goal: Compare -> Viz: Interactive Bar Chart -> Interaction: Hover for details, click legend to highlight sections. -> Justification: More engaging and intuitive than a static table for comparing core trade-offs. -> Library: Chart.js.
+
+        - Report Info: Sections 2, 3, 4 (Frameworks) -> Goal: Organize/Inform -> Viz: Filterable Card Grid -> Interaction: Filter by Language (Rust, Go, TS) or Layer (Core, Service, UI). -> Justification: Allows users to quickly find relevant tools for their specific problem, which is a primary user task. -> Library: Vanilla JS.
+
+        - Report Info: Section 4 ('T-Shaped' Architecture) & Section 5 (CRAG Workflow) -> Goal: Explain Concepts -> Viz: Custom HTML/Tailwind Diagrams -> Interaction: Clickable zones to reveal explanatory text. -> Justification: Visual representation is far more effective for architectural and process concepts than text alone. -> Library: HTML/CSS/JS.
+
+        - Report Info: Table 4, 5, 6 (LLM Techniques, MLOps, Agent Frameworks) -> Goal: Compare/Organize -> Viz: Interactive Accordions & Tabbed Content -> Interaction: Click to expand/reveal detailed comparisons. -> Justification: Manages information density, allowing users to drill down into complex topics without being overwhelmed initially. -> Library: Vanilla JS.
+
+    -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+
+        body {
+
+            font-family: 'Inter', 'Pretendard', sans-serif;
+
+            background-color: #F9FAFB; /* Light Gray */
+
+            color: #111827; /* Dark Gray */
+
+        }
+
+        .chart-container {
+
+            position: relative;
+
+            width: 100%;
+
+            max-width: 800px;
+
+            margin-left: auto;
+
+            margin-right: auto;
+
+            height: 400px;
+
+        }
+
+        @media (min-width: 768px) {
+
+            .chart-container {
+
+                height: 500px;
+
+            }
+
+        }
+
+        .nav-link {
+
+            transition: color 0.3s, border-bottom-color 0.3s;
+
+        }
+
+        .nav-link.active, .nav-link:hover {
+
+            color: #3B82F6; /* Blue 500 */
+
+            border-bottom-color: #3B82F6;
+
+        }
+
+        .tech-card {
+
+            transition: transform 0.2s, box-shadow 0.2s;
+
+        }
+
+        .tech-card:hover {
+
+            transform: translateY(-5px);
+
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+        }
+
+        .flowchart-node {
+
+            transition: background-color 0.3s, border-color 0.3s;
+
+            cursor: pointer;
+
+        }
+
+        .flowchart-node.active {
+
+            background-color: #DBEAFE; /* Blue 100 */
+
+            border-color: #3B82F6; /* Blue 500 */
+
+        }
+
+    </style>
+
+</head>
+
+<body class="bg-gray-50 text-gray-900">
+
+
+
+    <!-- Header & Navigation -->
+
+    <header id="header" class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+
+            <div class="flex items-center justify-between h-16">
+
+                <div class="flex-shrink-0">
+
+                    <h1 class="text-xl font-bold text-blue-600">AI 아키텍처 가이드</h1>
+
+                </div>
+
+                <nav class="hidden md:flex md:space-x-8">
+
+                    <a href="#intro" class="nav-link text-gray-600 font-medium border-b-2 border-transparent pb-1">도입</a>
+
+                    <a href="#language-comparison" class="nav-link text-gray-600 font-medium border-b-2 border-transparent pb-1">언어 비교</a>
+
+                    <a href="#tech-stack" class="nav-link text-gray-600 font-medium border-b-2 border-transparent pb-1">기술 스택</a>
+
+                    <a href="#llm-enhancement" class="nav-link text-gray-600 font-medium border-b-2 border-transparent pb-1">LLM 강화</a>
+
+                    <a href="#architecture" class="nav-link text-gray-600 font-medium border-b-2 border-transparent pb-1">아키텍처</a>
+
+                    <a href="#tools" class="nav-link text-gray-600 font-medium border-b-2 border-transparent pb-1">개발 도구</a>
+
+                </nav>
+
+            </div>
+
+        </div>
+
+    </header>
+
+
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+
+
+        <!-- Section 1: Introduction -->
+
+        <section id="intro" class="text-center mb-16 md:mb-24 scroll-mt-20">
+
+            <h2 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-4">차세대 AI, Python을 넘어서</h2>
+
+            <p class="max-w-3xl mx-auto text-lg text-gray-600">
+
+                AI가 연구 단계를 넘어 프로덕션의 핵심으로 자리 잡으면서, 이제는 성능, 안정성, 확장성이 무엇보다 중요해졌습니다. 이 대시보드는 Python 중심의 전통적 스택을 넘어, Rust, Go, TypeScript를 활용한 현대적이고 효율적인 AI 시스템 구축 전략을 인터랙티브하게 탐색합니다.
+
+            </p>
+
+        </section>
+
+
+
+        <!-- Section 2: Language Comparison -->
+
+        <section id="language-comparison" class="mb-16 md:mb-24 scroll-mt-20">
+
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">핵심 언어 전격 비교</h2>
+
+            <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">AI 개발의 각기 다른 단계에서 어떤 언어가 최적의 선택일까요? 성능, 안정성, 생산성의 균형점을 찾아보세요.</p>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+
+                <div class="chart-container">
+
+                    <canvas id="languageChart"></canvas>
+
+                </div>
+
+                <div id="language-details" class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+
+                    <!-- Details will be populated by JS -->
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- Section 3: Tech Stack Explorer -->
+
+        <section id="tech-stack" class="mb-16 md:mb-24 scroll-mt-20">
+
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">AI 기술 스택 탐색기</h2>
+
+            <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">AI 시스템의 각 계층에 필요한 프레임워크와 라이브러리를 필터링하여 찾아보세요.</p>
+
+            
+
+            <div class="flex justify-center space-x-2 mb-8">
+
+                <button data-filter="all" class="filter-btn bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold">전체</button>
+
+                <button data-filter="rust" class="filter-btn bg-white text-gray-700 px-4 py-2 rounded-full text-sm font-semibold">Rust</button>
+
+                <button data-filter="go" class="filter-btn bg-white text-gray-700 px-4 py-2 rounded-full text-sm font-semibold">Go</button>
+
+                <button data-filter="ts" class="filter-btn bg-white text-gray-700 px-4 py-2 rounded-full text-sm font-semibold">TypeScript</button>
+
+            </div>
+
+
+
+            <div id="tech-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+
+                <!-- Tech cards will be populated by JS -->
+
+            </div>
+
+        </section>
+
+
+
+        <!-- Section 4: LLM Enhancement -->
+
+        <section id="llm-enhancement" class="mb-16 md:mb-24 scroll-mt-20">
+
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">LLM 성능 강화 전략</h2>
+
+            <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">모델의 성능을 극대화하기 위한 고급 방법론들입니다. 당신의 목표에 맞는 최적의 기술을 선택해보세요.</p>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+
+                <div id="llm-enhancement-tabs" class="border-b border-gray-200">
+
+                    <nav class="flex space-x-4" aria-label="Tabs">
+
+                         <button data-tab="peft" class="llm-tab-btn text-blue-600 border-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">PEFT</button>
+
+                         <button data-tab="self-correction" class="llm-tab-btn text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">자기 교정</button>
+
+                         <button data-tab="crag" class="llm-tab-btn text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">CRAG</button>
+
+                    </nav>
+
+                </div>
+
+                <div id="llm-enhancement-content" class="pt-6">
+
+                    <!-- Content will be populated by JS -->
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+
+
+        <!-- Section 5: Architecture Blueprint -->
+
+        <section id="architecture" class="mb-16 md:mb-24 scroll-mt-20">
+
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">미래 지향적 AI 아키텍처</h2>
+
+            <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">성능, 확장성, 생산성을 모두 잡는 현대적인 폴리글랏 아키텍처 청사진입니다. 각 부분을 클릭하여 역할을 확인하세요.</p>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+
+                <div class="flex flex-col items-center">
+
+                    <div id="t-shape-container" class="w-full max-w-md relative" style="height: 300px;">
+
+                        <div data-layer="ts" class="t-shape-layer absolute top-0 left-1/2 -translate-x-1/2 w-full h-16 bg-green-200 rounded-t-lg flex items-center justify-center font-bold text-green-800 cursor-pointer transition hover:bg-green-300">애플리케이션 계층 (TypeScript)</div>
+
+                        <div data-layer="go" class="t-shape-layer absolute top-16 left-1/2 -translate-x-1/2 w-full h-16 bg-blue-200 flex items-center justify-center font-bold text-blue-800 cursor-pointer transition hover:bg-blue-300">서비스 계층 (Go)</div>
+
+                        <div data-layer="rust" class="t-shape-layer absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-32 bg-orange-200 rounded-b-lg flex items-center justify-center font-bold text-orange-800 cursor-pointer transition hover:bg-orange-300">코어 계층 (Rust)</div>
+
+                    </div>
+
+                    <div id="architecture-details" class="mt-8 p-4 bg-gray-100 rounded-lg w-full max-w-2xl min-h-[100px]">
+
+                        <p class="text-gray-600 text-center">아키텍처의 각 부분을 클릭하여 상세 설명을 확인하세요.</p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+        
+
+        <!-- Section 6: Tools -->
+
+        <section id="tools" class="scroll-mt-20">
+
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">개발 가속화 도구</h2>
+
+            <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">MLOps 플랫폼부터 로컬 개발 도구까지, AI 개발 여정을 가속화할 필수 오픈소스와 플랫폼을 만나보세요.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+
+                    <h3 class="font-bold text-lg mb-2 text-gray-800">MLOps 플랫폼</h3>
+
+                    <p class="text-sm text-gray-600 mb-4">데이터 준비부터 배포, 모니터링까지 전체 수명주기를 관리합니다.</p>
+
+                    <ul class="space-y-2 text-sm">
+
+                        <li class="flex items-start"><span class="text-blue-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">Google Vertex AI:</strong> Gemini 모델과 깊은 통합, 강력한 생성형 AI 도구.</div></li>
+
+                        <li class="flex items-start"><span class="text-blue-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">Amazon SageMaker:</strong> AWS 생태계와 Bedrock과의 완벽한 통합.</div></li>
+
+                        <li class="flex items-start"><span class="text-blue-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">ClearML:</strong> 뛰어난 실험 추적 및 재현성, 유연한 배포 옵션.</div></li>
+
+                    </ul>
+
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+
+                    <h3 class="font-bold text-lg mb-2 text-gray-800">로컬 개발 환경</h3>
+
+                    <p class="text-sm text-gray-600 mb-4">개인 머신에서 LLM을 쉽고 안전하게 실행하고 테스트합니다.</p>
+
+                    <ul class="space-y-2 text-sm">
+
+                        <li class="flex items-start"><span class="text-green-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">Ollama:</strong> LLM 로컬 실행 과정을 극적으로 단순화.</div></li>
+
+                        <li class="flex items-start"><span class="text-green-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">Open-WebUI:</strong> Ollama를 위한 ChatGPT와 유사한 웹 인터페이스 제공.</div></li>
+
+                    </ul>
+
+                </div>
+
+                 <div class="bg-white p-6 rounded-xl shadow-lg">
+
+                    <h3 class="font-bold text-lg mb-2 text-gray-800">에이전트 프레임워크</h3>
+
+                    <p class="text-sm text-gray-600 mb-4">여러 AI 에이전트가 협업하여 복잡한 작업을 자동화하도록 조율합니다.</p>
+
+                    <ul class="space-y-2 text-sm">
+
+                        <li class="flex items-start"><span class="text-purple-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">AutoGen:</strong> 유연한 다중 에이전트 대화 시스템 구축.</div></li>
+
+                        <li class="flex items-start"><span class="text-purple-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">CrewAI:</strong> 역할 기반의 구조화된 에이전트 오케스트레이션.</div></li>
+
+                        <li class="flex items-start"><span class="text-purple-500 font-bold mr-2">&#10003;</span> <div><strong class="font-semibold">GPT-Engineer:</strong> 자연어 프롬프트로 전체 코드베이스 생성.</div></li>
+
+                    </ul>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+    </main>
+
+    
+
+    <footer class="bg-gray-800 text-white mt-16 md:mt-24">
+
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm">
+
+            <p>&copy; 2025 AI Architecture Guide. 이 페이지는 제공된 보고서를 기반으로 생성되었습니다.</p>
+
+        </div>
+
+    </footer>
+
+
+
+    <script>
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+
+
+            const data = {
+
+                languages: {
+
+                    labels: ['성능', '메모리 안전성', '동시성', '생태계 성숙도', '학습 용이성'],
+
+                    datasets: [
+
+                        { label: 'Python', data: [2, 3, 3, 10, 9], backgroundColor: 'rgba(255, 159, 64, 0.7)' },
+
+                        { label: 'Rust', data: [10, 10, 8, 6, 2], backgroundColor: 'rgba(255, 99, 132, 0.7)' },
+
+                        { label: 'Go', data: [8, 6, 10, 7, 7], backgroundColor: 'rgba(54, 162, 235, 0.7)' }
+
+                    ],
+
+                    details: {
+
+                        'Python': { title: '연구 및 프로토타이핑의 강자', text: '방대한 생태계와 쉬운 문법으로 아이디어를 빠르게 실험하는 데 최적화되어 있습니다. 하지만 프로덕션 환경에서는 성능과 동시성 문제에 부딪힐 수 있습니다.'},
+
+                        'Rust': { title: '성능과 안정성의 보증수표', text: 'C++ 수준의 성능을 메모리 안전성과 함께 제공합니다. 고성능 추론 엔진, 데이터 파이프라인 등 핵심 코어 개발에 가장 적합합니다.'},
+
+                        'Go': { title: '확장 가능한 서비스의 표준', text: '탁월한 동시성 처리 능력으로 대규모 API 백엔드와 마이크로서비스 오케스트레이션에 특화되어 있습니다. 단순하고 안정적인 운영이 장점입니다.'}
+
+                    }
+
+                },
+
+                techStack: [
+
+                    { name: 'Candle', lang: 'rust', layer: 'Core', desc: 'Hugging Face가 개발한 미니멀리스트 ML 프레임워크. PyTorch와 유사하며 성능에 중점.' },
+
+                    { name: 'Burn', lang: 'rust', layer: 'Core', desc: '처음부터 Rust로 작성된 포괄적인 딥러닝 프레임워크. 유연성과 이식성이 높음.' },
+
+                    { name: 'Polars', lang: 'rust', layer: 'Data', desc: 'Pandas보다 빠른 고성능 데이터프레임 라이브러리. 대용량 데이터 처리에 필수.' },
+
+                    { name: 'tch-rs', lang: 'rust', layer: 'Core', desc: 'PyTorch의 C++ API(libtorch)에 대한 Rust 바인딩. 기존 PyTorch 생태계 활용.' },
+
+                    { name: 'LangChainGo', lang: 'go', layer: 'Service', desc: '인기 있는 LangChain의 Go 버전. AI 애플리케이션 로직을 Go로 마이그레이션.' },
+
+                    { name: 'Genkit for Go', lang: 'go', layer: 'Service', desc: 'Google의 오픈소스 프레임워크. 프로덕션 기능과 관찰 가능성에 중점.' },
+
+                    { name: 'gollm', lang: 'go', layer: 'Service', desc: '다양한 LLM 제공자와의 상호작용을 위한 통합 인터페이스 제공.' },
+
+                    { name: 'go-openai', lang: 'go', layer: 'API', desc: 'OpenAI API에 직접 접근하는 저수준 클라이언트 라이브러리. 최대의 제어와 성능.' },
+
+                    { name: 'Vercel AI SDK', lang: 'ts', layer: 'UI/BFF', desc: 'AI 기반 사용자 인터페이스와 경험을 쉽게 구축하기 위한 통합 API 제공.' },
+
+                    { name: 'Agentica', lang: 'ts', layer: 'BFF', desc: 'TypeScript로 복잡한 다중 도구 AI 에이전트의 백엔드 로직을 구축하는 프레임워크.' },
+
+                ],
+
+                architecture: {
+
+                    'ts': { title: '애플리케이션 및 UI 계층 (TypeScript)', desc: '응답성이 뛰어난 사용자 인터페이스와 이를 지원하는 BFF(Backend-for-Frontend) 로직을 구축합니다. 방대한 웹 개발자 생태계를 활용하여 빠르게 AI 기능을 최종 사용자에게 전달하는 역할을 합니다.' },
+
+                    'go': { title: '서비스 및 오케스트레이션 계층 (Go)', desc: '확장 가능하고 동시성 높은 API를 제공하고, 복잡한 RAG 및 에이전트 워크플로우를 관리합니다. 이 계층에서는 Go의 단순성, 신뢰성, 그리고 탁월한 동시성 처리 능력이 빛을 발합니다.' },
+
+                    'rust': { title: '데이터 및 핵심 ML 계층 (Rust)', desc: '데이터 처리, 임베딩 생성, 고성능 추론을 담당합니다. 성능이 비용 및 사용자 경험과 직결되는 이 영역에서는 Rust의 메모리 안전성과 속도가 핵심적인 경쟁력이 됩니다.' },
+
+                },
+
+                llmEnhancement: {
+
+                    'peft': {
+
+                        title: 'PEFT (파라미터 효율적 파인튜닝)',
+
+                        desc: '모델의 대부분 파라미터는 고정하고, 일부만 튜닝하여 적은 비용으로 특정 도메인에 모델을 특화시키는 기법입니다. LoRA, QLoRA가 대표적입니다.',
+
+                        points: ['적은 계산 자원으로 파인튜닝 가능', '파국적 망각 현상 방지', 'Hugging Face의 `peft` 라이브러리로 쉽게 구현']
+
+                    },
+
+                    'self-correction': {
+
+                        title: '자기 교정',
+
+                        desc: 'LLM이 인간처럼 자신의 출력을 비평하고 개선하도록 유도하는 추론 시점의 기술입니다. 복잡한 추론 작업의 정확도를 높일 수 있습니다.',
+
+                        points: ['Self-Refine: 피드백을 통한 반복적 개선', 'CoVe: 검증 질문을 생성하여 자체 검증', 'SCoRe: 강화학습을 통해 교정 능력을 내재화']
+
+                    },
+
+                    'crag': {
+
+                        title: 'CRAG (교정 RAG)',
+
+                        desc: '표준 RAG의 검색(Retrieve) 단계에 자기 교정 루프를 추가하여, 관련 없는 정보가 검색되었을 때 이를 바로잡는 견고한 시스템입니다.',
+
+                        points: ['검색된 문서의 관련성을 평가', '품질이 낮으면 웹 검색 등 교정 조치 실행', '기존 RAG 시스템에 플러그인 방식으로 적용 가능']
+
+                    }
+
+                }
+
+            };
+
+            
+
+            function renderLanguageDetails() {
+
+                const detailsContainer = document.getElementById('language-details');
+
+                detailsContainer.innerHTML = '';
+
+                Object.keys(data.languages.details).forEach(lang => {
+
+                    const detail = data.languages.details[lang];
+
+                    const div = document.createElement('div');
+
+                    div.className = 'p-4 bg-gray-50 rounded-lg';
+
+                    div.innerHTML = `
+
+                        <h3 class="font-bold text-gray-800 mb-1">${detail.title}</h3>
+
+                        <p class="text-gray-600">${detail.text}</p>
+
+                    `;
+
+                    detailsContainer.appendChild(div);
+
+                });
+
+            }
+
+
+
+            function renderTechStack(filter = 'all') {
+
+                const grid = document.getElementById('tech-grid');
+
+                grid.innerHTML = '';
+
+                const filteredStack = (filter === 'all') ? data.techStack : data.techStack.filter(tech => tech.lang === filter);
+
+                
+
+                filteredStack.forEach(tech => {
+
+                    const card = document.createElement('div');
+
+                    let langColorClass = '';
+
+                    switch(tech.lang) {
+
+                        case 'rust': langColorClass = 'border-t-orange-500'; break;
+
+                        case 'go': langColorClass = 'border-t-blue-500'; break;
+
+                        case 'ts': langColorClass = 'border-t-green-500'; break;
+
+                    }
+
+                    card.className = `tech-card bg-white p-6 rounded-lg shadow-md border-t-4 ${langColorClass}`;
+
+                    card.innerHTML = `
+
+                        <h3 class="font-bold text-lg mb-2">${tech.name}</h3>
+
+                        <p class="text-sm text-gray-600">${tech.desc}</p>
+
+                        <div class="mt-4 text-xs font-semibold text-gray-500">
+
+                            <span class="inline-block bg-gray-200 rounded-full px-3 py-1 mr-2">${tech.lang.toUpperCase()}</span>
+
+                            <span class="inline-block bg-gray-200 rounded-full px-3 py-1">${tech.layer}</span>
+
+                        </div>
+
+                    `;
+
+                    grid.appendChild(card);
+
+                });
+
+            }
+
+
+
+            function renderLlmEnhancementContent(tab = 'peft') {
+
+                const contentContainer = document.getElementById('llm-enhancement-content');
+
+                const content = data.llmEnhancement[tab];
+
+                if (!content) return;
+
+
+
+                let pointsHTML = content.points.map(p => `<li class="flex items-start"><span class="text-blue-500 font-bold mr-2">&#10003;</span>${p}</li>`).join('');
+
+
+
+                contentContainer.innerHTML = `
+
+                    <h3 class="font-bold text-xl mb-2 text-gray-800">${content.title}</h3>
+
+                    <p class="text-gray-600 mb-4">${content.desc}</p>
+
+                    <ul class="space-y-2 text-sm">${pointsHTML}</ul>
+
+                `;
+
+            }
+
+
+
+            // Init Language Chart
+
+            const ctx = document.getElementById('languageChart').getContext('2d');
+
+            const languageChart = new Chart(ctx, {
+
+                type: 'bar',
+
+                data: data.languages,
+
+                options: {
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+                    indexAxis: 'y',
+
+                    scales: {
+
+                        x: { beginAtZero: true, max: 10, grid: { color: '#E5E7EB' } },
+
+                        y: { grid: { display: false } }
+
+                    },
+
+                    plugins: {
+
+                        legend: { position: 'top' },
+
+                        title: { display: true, text: 'AI 개발 언어 역량 비교 (10점 만점)' }
+
+                    }
+
+                }
+
+            });
+
+
+
+            // Init Tech Stack
+
+            renderLanguageDetails();
+
+            renderTechStack();
+
+            document.querySelectorAll('.filter-btn').forEach(button => {
+
+                button.addEventListener('click', (e) => {
+
+                    const filter = e.target.dataset.filter;
+
+                    renderTechStack(filter);
+
+                    document.querySelectorAll('.filter-btn').forEach(btn => {
+
+                        btn.classList.remove('bg-blue-500', 'text-white');
+
+                        btn.classList.add('bg-white', 'text-gray-700');
+
+                    });
+
+                    e.target.classList.add('bg-blue-500', 'text-white');
+
+                    e.target.classList.remove('bg-white', 'text-gray-700');
+
+                });
+
+            });
+
+
+
+            // Init Architecture Diagram
+
+            const archDetails = document.getElementById('architecture-details');
+
+            document.querySelectorAll('.t-shape-layer').forEach(layer => {
+
+                layer.addEventListener('click', (e) => {
+
+                    const layerId = e.currentTarget.dataset.layer;
+
+                    const detail = data.architecture[layerId];
+
+                    archDetails.innerHTML = `<h3 class="font-bold text-lg mb-2">${detail.title}</h3><p>${detail.desc}</p>`;
+
+                    document.querySelectorAll('.t-shape-layer').forEach(l => l.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2'));
+
+                    e.currentTarget.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+
+                });
+
+            });
+
+
+
+            // Init LLM Enhancement Tabs
+
+            renderLlmEnhancementContent('peft');
+
+            document.querySelectorAll('.llm-tab-btn').forEach(button => {
+
+                button.addEventListener('click', e => {
+
+                    const tab = e.target.dataset.tab;
+
+                    renderLlmEnhancementContent(tab);
+
+                    document.querySelectorAll('.llm-tab-btn').forEach(btn => {
+
+                        btn.classList.remove('text-blue-600', 'border-blue-600');
+
+                        btn.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+
+                    });
+
+                    e.target.classList.add('text-blue-600', 'border-blue-600');
+
+                    e.target.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+
+                });
+
+            });
+
+
+
+
+
+            // Nav scroll behavior
+
+            const headerHeight = document.getElementById('header').offsetHeight;
+
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+
+                anchor.addEventListener('click', function (e) {
+
+                    e.preventDefault();
+
+                    const targetId = this.getAttribute('href');
+
+                    const targetElement = document.querySelector(targetId);
+
+                    if (targetElement) {
+
+                        const targetPosition = targetElement.getBoundingClientRect().top + window.pageYOffset - headerHeight - 20;
+
+                        window.scrollTo({
+
+                            top: targetPosition,
+
+                            behavior: 'smooth'
+
+                        });
+
+                    }
+
+                });
+
+            });
+
+            
+
+            // Nav active state on scroll
+
+            const sections = document.querySelectorAll('section');
+
+            const navLinks = document.querySelectorAll('.nav-link');
+
+            window.addEventListener('scroll', () => {
+
+                let current = '';
+
+                sections.forEach(section => {
+
+                    const sectionTop = section.offsetTop - headerHeight - 24;
+
+                    if (pageYOffset >= sectionTop) {
+
+                        current = section.getAttribute('id');
+
+                    }
+
+                });
+
+                navLinks.forEach(link => {
+
+                    link.classList.remove('active');
+
+                    if (link.getAttribute('href').includes(current)) {
+
+                        link.classList.add('active');
+
+                    }
+
+                });
+
+            });
+
+
+
+        });
+
+    </script>
+
+</body>
+
+</html>
+

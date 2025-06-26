@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager
+/.build
+/Packages
+/.swiftpm
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcodeproj/project.xcworkspace/
+*.xcworkspace/
+
+GEMINI.md
+
+# Swift-specific build artifacts
+*.o
+*.d
+*.swiftdoc
+*.swiftmodule
+*.swo
+
+# Other common build/temp files
+*.ipa
+*.xcarchive
+*.app
+*.framework
+*.dylib
+*.a
+*.log
+*.temp
+*.tmp
+*.bak
+*.swp
+
+# Credentials
+.netrc
