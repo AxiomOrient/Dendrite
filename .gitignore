@@ -36,3 +36,8 @@ GEMINI.md
 
 # Credentials
 .netrc
+
+
+GEMINI.md
+
+!Tests/DendriteTests/Resources/*.md

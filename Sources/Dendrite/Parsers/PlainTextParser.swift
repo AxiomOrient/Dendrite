@@ -16,8 +16,7 @@ struct PlainTextParser: ParserProtocol {
 
     public func parse(data: Data, type: UTType) async throws -> ParsedDocument {
         guard let textContent = String(data: data, encoding: .utf8) else {
-            let error = NSError(domain: "Dendrite.PlainTextParser", code: 1, userInfo: [NSLocalizedDescriptionKey: "데이터를 UTF-8 문자열로 변환할 수 없습니다."])
-            throw DendriteError.parsingFailed(parserName: "PlainTextParser", underlyingError: error)
+            throw DendriteError.decodingFailed(encoding: "UTF-8")
         }
         
         // 작업 취소 확인
