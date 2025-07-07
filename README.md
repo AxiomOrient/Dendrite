@@ -509,10 +509,6 @@ Dendrite 프로젝트에 기여하는 것을 환영합니다! 버그 보고, 기
 4.  원격 저장소에 푸시합니다: `git push origin feature/your-feature-name`
 5.  Pull Request를 생성합니다.
 
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스에 따라 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하십시오.
-
 ## 📞 문의 및 지원
 
 질문, 제안 또는 문제가 발생하면 GitHub Issues를 통해 문의해 주십시오.
