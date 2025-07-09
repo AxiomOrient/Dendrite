@@ -30,7 +30,7 @@ let package = Package(
             name: "DendriteTests",
             dependencies: ["Dendrite"],
             resources: [
-                .copy("Resources"),
+                .process("Resources"),
             ]
         )
     ]
