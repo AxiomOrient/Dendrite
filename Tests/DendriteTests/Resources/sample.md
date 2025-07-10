@@ -202,7 +202,7 @@ _The following Swift-specific rules are based on the foundational principles of 
     - **`class`:** Consider using `class` only in the following cases: when managing the state of an external system (e.g., a file handler), when a single instance is necessary, or when interoperability with Objective-C is required.
 - **State Modeling with Enums:**
     
-    - Actively use `enum` with associated values to represent a limited set of states. 
+    - Actively use `enum` with associated values to represent a limited set of states.
     
     Swift
     
@@ -214,6 +214,7 @@ _The following Swift-specific rules are based on the foundational principles of 
     }
     ```
     
+
 - **Composition over Inheritance:** Prioritize combining functionality through protocols and object composition over creating rigid class hierarchies.
 
 #### **6. Error Handling Strategy**
@@ -261,3 +262,9 @@ _The following Swift-specific rules are based on the foundational principles of 
 - **Access Control:** Internal implementation details that do not need to be known externally should be `private` or `fileprivate` by default. APIs between modules should be clearly defined as `internal` (the default) or `public`. However, consider designing parts that are highly likely to be shared more openly for reusability.
 - **Prohibit Force Casting and Unwrapping:** The use of **`as!` (forced downcasting)** and **`!` (forced unwrapping)** is forbidden in production code as it can crash the app.
 ---
+
+| Header 1 | Header 2 | Header 3 |
+|---|---|---|
+| Row 1 Col 1 | Row 1 Col 2 | Row 1 Col 3 |
+| Row 2 Col 1 | Row 2 Col 2 | Row 2 Col 3 |
+| Row 3 Col 1 | Row 3 Col 2 | Row 3 Col 3 |

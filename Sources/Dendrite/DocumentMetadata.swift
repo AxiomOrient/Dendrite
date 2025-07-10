@@ -62,6 +62,16 @@ public struct DocumentMetadata: Sendable {
     public struct MarkdownMetadata: Sendable {
         /// 문서의 헤더(H1, H2, ...)들로 구성된 개요(outline)입니다.
         public var outline: [String]?
+        /// 문서 내에 포함된 테이블 데이터의 배열입니다.
+        public var tables: [TableData]?
+    }
+
+    /// 테이블의 구조화된 데이터를 담는 구조체입니다.
+    public struct TableData: Sendable {
+        /// 테이블의 헤더(첫 번째 행)입니다.
+        public var headers: [String]
+        /// 테이블의 나머지 행들입니다. 각 행은 문자열 배열로 표현됩니다.
+        public var rows: [[String]]
     }
     
     /// HTML 파일의 고유 메타데이터를 담는 구조체입니다.

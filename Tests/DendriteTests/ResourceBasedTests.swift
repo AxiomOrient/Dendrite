@@ -26,8 +26,8 @@ final class ResourceBasedTests {
         
         // Print for verification
         print("--- [Test: sample.md] ---")
-        print("Original Content (first 100 chars):\n\(originalContent.prefix(100))...")
-        print("Parsed Content (first 100 chars):\n\(document.content.prefix(100))...")
+//        print("Original Content (first 100 chars):\n\(originalContent)...")
+        print("Parsed Content (first 100 chars):\n\(document.content)...")
         print("Parsed Metadata:\n\(document.metadata)")
         print("--------------------------")
         
