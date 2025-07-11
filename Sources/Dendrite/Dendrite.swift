@@ -2,57 +2,56 @@
 
 import Foundation
 import UniformTypeIdentifiers
-import Vision
-import CoreGraphics
+
+// MARK: - Processed Document Model
+
+/// `Dendrite` 라이브러리의 최종 처리 결과물을 담는 구조체입니다.
+/// 이 객체는 파싱된 전체 노드 트리, 의미 단위로 분할된 청크, 그리고 다양한 통계 정보를 포함합니다.
+public struct ProcessedDocument: Sendable {
+    /// 문서의 고유 식별자입니다。
+    public let id: DocumentID
+    /// 문서에서 추출된 메타데이터입니다。
+    public let metadata: DocumentMetadata
+    /// 파싱된 `SemanticNode`의 전체 트리입니다。
+    public let nodes: [SemanticNode]
+    /// 의미 단위로 분할된 `Chunk`의 배열입니다。
+    public let chunks: [Chunk]
+    /// 처리에 소요된 시간, 토큰 수 등의 통계 정보입니다。
+    public let statistics: ProcessingStatistics
+}
+
+/// 문서 처리 과정에 대한 통계 정보를 담는 구조체입니다。
+public struct ProcessingStatistics: Sendable {
+    /// 총 처리 시간 (초) 입니다。
+    public let processingTime: TimeInterval
+    /// 문서 전체의 총 토큰 수 입니다。
+    public let totalTokenCount: TokenCount
+    /// 생성된 청크의 총 개수입니다。
+    public let chunkCount: Int
+    /// 청크 당 평균 토큰 수 입니다。
+    public let averageTokensPerChunk: TokenCount
+}
+
+// MARK: - Main API Namespace
 
 /// 다양한 형식의 문서를 파싱하고 변환하는 라이브러리의 메인 API 네임스페이스입니다.
-///
-/// ## 개요
-/// `Dendrite`는 파일 파싱, 형식 변환, 광학 문자 인식(OCR) 등 문서 처리와 관련된
-/// 모든 고수준 API를 제공하는 정적 타입입니다.
-/// 사용자는 이 타입을 통해 라이브러리의 모든 핵심 기능에 접근할 수 있습니다.
-///
-/// ### 주요 기능
-/// - ``parse(from:config:)``: URL로부터 문서를 파싱합니다.
-/// - ``parse(data:fileType:config:)``: 메모리의 `Data`로부터 문서를 파싱합니다.
-/// - ``Converter``: 형식 변환 유틸리티를 제공합니다.
-/// - ``OCR``: 이미지로부터 텍스트를 추출하는 OCR 기능을 제공합니다.
 public enum Dendrite {
     
-    // MARK: - Parsing API
-    
-    /// 지정된 URL의 파일을 파싱하여 텍스트와 메타데이터를 추출합니다.
-    ///
-    /// 이 메서드는 URL로부터 비동기적으로 데이터를 읽고, 파일 확장자에 맞는 파서를
-    /// 동적으로 선택하여 파싱을 수행합니다.
-    ///
-    /// ```swift
-    /// do {
-    ///     let url = URL(string: "https://example.com/document.pdf")!
-    ///     let document = try await Dendrite.parse(from: url)
-    ///     print(document.content)
-    /// } catch {
-    ///     print("파싱 실패: \(error)")
-    /// }
-    /// ```
+    /// 지정된 URL의 파일을 처리하여, 파싱된 노드, 의미 단위 청크, 메타데이터를 포함하는 `ProcessedDocument`를 반환합니다.
     ///
     /// - Parameters:
-    ///   - url: 파싱할 파일의 URL. 로컬 및 원격 URL을 모두 지원합니다.
-    ///   - config: 파서 구성 및 옵션을 포함하는 설정 객체. 기본값은 `.default`입니다.
-    /// - Returns: 파싱된 텍스트와 메타데이터를 담은 ``ParsedDocument``.
-    /// - Throws: ``DendriteError`` 형식의 오류. 파일 읽기 실패, 지원하지 않는 파일 타입,
-    ///           또는 내부 파싱 실패 시 발생할 수 있습니다.
-    public static func parse(
+    ///   - url: 처리할 파일의 URL
+    ///   - documentId: 문서에 부여할 고유 ID. `nil`인 경우 파일 이름을 사용합니다.
+    ///   - config: 처리 과정을 제어하는 설정 객체. 청크 크기, 파서 등을 지정할 수 있습니다.
+    ///   - tokenizer: 청킹 시 토큰 수 계산에 사용할 `Tokenizer` 인스턴스.
+    /// - Returns: `ProcessedDocument` 객체
+    public static func process(
         from url: URL,
-        config: DendriteConfig = .default
-    ) async throws -> ParsedDocument {
+        documentId: DocumentID? = nil,
+        config: DendriteConfig = .default,
+        tokenizer: any Tokenizer
+    ) async throws -> ProcessedDocument {
         
-        // 1. 파일 확장자를 기반으로 UTType을 결정합니다.
-        guard let type = UTType(filenameExtension: url.pathExtension) else {
-            throw DendriteError.unsupportedFileType(fileExtension: url.pathExtension)
-        }
-        
-        // 2. URL로부터 데이터를 비동기적으로 읽습니다.
         let data: Data
         do {
             data = try Data(contentsOf: url)
@@ -60,96 +59,69 @@ public enum Dendrite {
             throw DendriteError.fileReadFailed(url: url, underlyingError: error)
         }
         
-        // 3. 데이터와 타입을 사용하여 파싱을 수행합니다.
-        return try await parse(data: data, fileType: type, config: config)
+        let fileType = UTType(filenameExtension: url.pathExtension)
+        let docId = documentId ?? DocumentID(url.lastPathComponent)
+        
+        // 1. 메타데이터 빌더 생성 및 범용 정보 채우기
+        let metadataBuilder = DocumentMetadataBuilder()
+        do {
+            let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey, .creationDateKey, .contentModificationDateKey])
+            metadataBuilder
+                .fileSize(resourceValues.fileSize)
+                .creationDate(resourceValues.creationDate)
+                .modificationDate(resourceValues.contentModificationDate)
+                .mimeType(UTType(filenameExtension: url.pathExtension)?.preferredMIMEType)
+        } catch {
+            // 리소스 값 가져오기 실패는 치명적이지 않음, 로깅만 하고 계속 진행
+            print("Warning: Could not retrieve file resource values for \(url.path): \(error)")
+        }
+        
+        return try await process(data: data, fileType: fileType, documentId: docId, config: config, tokenizer: tokenizer, metadataBuilder: metadataBuilder)
     }
     
-    /// 메모리에 있는 `Data`를 지정된 파일 타입으로 파싱합니다.
-    ///
-    /// 이 메서드는 라이브러리의 핵심 공개 API(Facade) 역할을 합니다.
-    /// 내부적으로 `ParserFactory`를 통해 ``DendriteConfig``에 따라 적절한 파서를 선택하여
-    /// 파싱 작업을 위임합니다.
-    ///
-    /// - Parameters:
-    ///   - data: 파싱할 원본 데이터.
-    ///   - fileType: 데이터의 파일 타입 (`UTType`).
-    ///   - config: 파서 구성 및 옵션을 포함하는 설정 객체. 기본값은 `.default`입니다.
-    /// - Returns: 파싱된 텍스트와 메타데이터를 담은 ``ParsedDocument``.
-    /// - Throws: ``DendriteError`` 형식의 오류. 지원하지 않는 파일 타입 또는 내부 파싱 실패 시
-    ///           발생할 수 있습니다.
-    public static func parse(
+    /// 메모리에 있는 `Data`를 처리하여, `ProcessedDocument`를 반환합니다.
+    public static func process(
         data: Data,
-        fileType: UTType,
-        config: DendriteConfig = .default
-    ) async throws -> ParsedDocument {
+        fileType: UTType?,
+        documentId: DocumentID,
+        config: DendriteConfig = .default,
+        tokenizer: any Tokenizer,
+        metadataBuilder: DocumentMetadataBuilder = DocumentMetadataBuilder() // URL이 없을 경우를 위한 기본 빌더
+    ) async throws -> ProcessedDocument {
         
-        // 1. 팩토리에 설정 객체의 파서 목록을 전달하여 적절한 파서를 가져옵니다.
+        let startTime = Date()
+        
+        guard let fileType = fileType else {
+            throw DendriteError.unsupportedFileType(fileExtension: "unknown")
+        }
+        
         guard let parser = ParserFactory.parser(for: fileType, availableParsers: config.parsers) else {
             throw DendriteError.unsupportedFileType(fileExtension: fileType.preferredFilenameExtension ?? "unknown")
         }
         
-        // 2. 해당 파서로 파싱을 실행하고 결과를 반환합니다.
-        do {
-            return try await parser.parse(data: data, type: fileType)
-        } catch let dendriteError as DendriteError {
-            // 이미 DendriteError인 경우, 다시 래핑하지 않고 그대로 전파합니다.
-            throw dendriteError
-        } catch {
-            // DendriteError가 아닌 다른 종류의 오류가 발생한 경우, 컨텍스트를 추가하여 래핑합니다.
-            throw DendriteError.parsingFailed(parserName: String(describing: Swift.type(of: parser)), underlyingError: error)
-        }
-    }
-    
-    // MARK: - Conversion API
-    
-    /// 문서 형식 변환을 위한 유틸리티 네임스페이스입니다.
-    public struct Converter {
-        /// HTML 문자열을 Markdown 문자열로 변환합니다.
-        ///
-        /// 이 메서드는 내부적으로 HTML의 구조를 분석하여 의미론적으로 동등한
-        /// Markdown 텍스트를 생성합니다.
-        ///
-        /// - Parameter html: 변환할 HTML 문자열.
-        /// - Returns: 변환된 Markdown 문자열.
-        /// - Throws: HTML 파싱 또는 변환 과정에서 오류가 발생할 수 있습니다.
-        public static func htmlToMarkdown(from html: String) throws -> String {
-            try MarkdownFromHTMLConverter().convert(html)
-        }
-    }
-    
-    // MARK: - OCR API
-    
-    /// OCR(광학 문자 인식) 기능을 위한 유틸리티 네임스페이스입니다.
-    public enum OCR {
-        /// 주어진 이미지(`CGImage`)에서 텍스트를 인식합니다.
-        ///
-        /// Vision 프레임워크를 기반으로 동작하며, 지정된 언어와 정확도 수준에 따라
-        /// 이미지 내의 텍스트를 추출합니다.
-        ///
-        /// ```swift
-        /// func performOCR(on image: CGImage) async {
-        ///     let config = OCRConfiguration(languages: ["ko-KR", "en-US"])
-        ///     do {
-        ///         let result = try await Dendrite.OCR.perform(on: image, configuration: config)
-        ///         print("인식된 텍스트: \(result.text)")
-        ///         print("신뢰도: \(result.confidence)")
-        ///     } catch {
-        ///         print("OCR 실패: \(error)")
-        ///     }
-        /// }
-        /// ```
-        ///
-        /// - Parameters:
-        ///   - cgImage: OCR을 수행할 `CGImage` 객체.
-        ///   - configuration: OCR 언어, 정확도 등을 포함하는 설정 객체.
-        /// - Returns: 인식된 텍스트와 평균 신뢰도를 포함하는 ``OCRResult`` 객체.
-        /// - Throws: Vision 프레임워크가 텍스트를 인식하는 과정에서 오류가 발생할 수 있습니다.
-        public static func perform(
-            on cgImage: CGImage,
-            configuration: OCRConfiguration = .init()
-        ) async throws -> OCRResult {
-            let service = VisionOCRService(configuration: configuration)
-            return try await service.performOCR(on: cgImage)
-        }
+        // 1. 파싱 (메타데이터 빌더 전달)
+        let (nodes, metadata) = try await parser.parse(data: data, type: fileType, metadataBuilder: metadataBuilder)
+        
+        // 2. 청킹
+        let chunker = HierarchicalChunker(tokenizer: tokenizer, configuration: config.chunking) // 수정됨
+        let chunks = try await chunker.chunk(nodes: nodes, documentId: documentId, metadata: metadata)
+        
+        // 3. 통계 계산 및 최종 결과물 조립
+        let processingTime = Date().timeIntervalSince(startTime)
+        let totalTokens = chunks.reduce(0) { $0 + $1.tokenCount.value }
+        let stats = ProcessingStatistics(
+            processingTime: processingTime,
+            totalTokenCount: TokenCount(totalTokens),
+            chunkCount: chunks.count,
+            averageTokensPerChunk: chunks.isEmpty ? TokenCount(0) : TokenCount(totalTokens / chunks.count)
+        )
+        
+        return ProcessedDocument(
+            id: documentId,
+            metadata: metadata,
+            nodes: nodes,
+            chunks: chunks,
+            statistics: stats
+        )
     }
 }

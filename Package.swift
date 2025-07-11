@@ -3,11 +3,12 @@
 
 import PackageDescription
 
+// Warring!! - swift-testing 추가 금지. swift 6에 이미 포함되어 있음.
 let package = Package(
     name: "Dendrite",
     platforms: [
-        .macOS(.v13),
-        .iOS(.v16),
+        .macOS(.v14),
+        .iOS(.v17),
     ],
     products: [
         .library(
@@ -28,7 +29,9 @@ let package = Package(
         ),
         .testTarget(
             name: "DendriteTests",
-            dependencies: ["Dendrite"],
+            dependencies: [
+                "Dendrite",
+            ],
             resources: [
                 .process("Resources"),
             ]

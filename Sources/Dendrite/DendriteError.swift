@@ -22,29 +22,17 @@ public enum DendriteError: Error, LocalizedError, Equatable {
     /// - Parameters:
     ///   - encoding: 디코딩에 사용된 인코딩 형식의 이름입니다. (예: "UTF-8")
     case decodingFailed(encoding: String)
-
+    
     /// 파일 파싱 과정에서 실패했을 때 발생하는 오류입니다.
     /// - Parameters:
     ///   - parserName: 파싱을 시도한 파서의 이름입니다.
     ///   - underlyingError: 파싱 실패의 근본 원인이 된 에러입니다.
     case parsingFailed(parserName: String, underlyingError: Error)
     
-    // MARK: - PDF Specific Errors
-    
-    /// PDF 문서를 데이터로부터 로드하지 못했을 때 발생하는 오류입니다.
-    ///
-    /// 이 오류는 보통 데이터가 유효한 PDF 형식이 아닐 때 발생합니다.
-    case pdfDocumentLoadFailure
-    
-    /// PDF에서 특정 페이지를 찾지 못했을 때 발생하는 오류입니다.
+    /// 의미론적 청킹 과정에서 실패했을 때 발생하는 오류입니다.
     /// - Parameters:
-    ///   - pageNumber: 찾지 못한 페이지 번호 (1부터 시작).
-    case pdfPageNotFound(pageNumber: Int)
-    
-    /// PDF 페이지를 이미지로 렌더링하는 데 실패했을 때 발생하는 오류입니다.
-    ///
-    /// 이 오류는 Core Graphics 또는 시스템의 렌더링 엔진에서 문제가 발생했을 때 나타날 수 있습니다.
-    case pdfImageRenderingFailure
+    ///   - underlyingError: 청킹 실패의 근본 원인이 된 에러입니다.
+    case chunkingFailed(underlyingError: Error)
     
     // MARK: - Error Descriptions
     
@@ -58,21 +46,13 @@ public enum DendriteError: Error, LocalizedError, Equatable {
             return "\(encoding)으로 데이터를 디코딩하는 데 실패했습니다."
         case .parsingFailed(let parserName, let underlyingError):
             return "\(parserName) 파싱에 실패했습니다. 원인: \(underlyingError.localizedDescription)"
-        case .pdfDocumentLoadFailure:
-            return "PDF 문서 로드에 실패했습니다."
-        case .pdfPageNotFound(let pageNumber):
-            return "PDF에서 페이지 \(pageNumber)를 찾을 수 없습니다."
-        case .pdfImageRenderingFailure:
-            return "PDF 페이지를 이미지로 렌더링하는 데 실패했습니다."
+        case .chunkingFailed(let underlyingError):
+            return "의미론적 청킹에 실패했습니다. 원인: \(underlyingError.localizedDescription)"
         }
     }
     
     public static func == (lhs: DendriteError, rhs: DendriteError) -> Bool {
         switch (lhs, rhs) {
-        case (.pdfDocumentLoadFailure, .pdfDocumentLoadFailure):
-            return true
-        case (.pdfImageRenderingFailure, .pdfImageRenderingFailure):
-            return true
         case (.unsupportedFileType(let lExt), .unsupportedFileType(let rExt)):
             return lExt == rExt
         case (.fileReadFailed(let lURL, _), .fileReadFailed(let rURL, _)):
@@ -81,8 +61,8 @@ public enum DendriteError: Error, LocalizedError, Equatable {
             return lEnc == rEnc
         case (.parsingFailed(let lName, _), .parsingFailed(let rName, _)):
             return lName == rName
-        case (.pdfPageNotFound(let lPage), .pdfPageNotFound(let rPage)):
-            return lPage == rPage
+        case (.chunkingFailed, .chunkingFailed):
+            return true // In a real scenario, you might compare underlying errors if they are Equatable.
         default:
             return false
         }

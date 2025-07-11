@@ -15,9 +15,9 @@ public protocol ParserProtocol: Sendable {
     /// - Parameters:
     ///   - data: 파싱할 파일의 원본 데이터
     ///   - type: 파일의 `UTType`
-    /// - Returns: 파싱된 문서 객체
+    /// - Returns: 파싱된 의미론적 노드 배열과 메타데이터의 튜플
     /// - Throws: 파싱 과정에서 발생한 에러. 작업이 취소된 경우 `CancellationError`를 던집니다.
-    func parse(data: Data, type: UTType) async throws -> ParsedDocument
+    func parse(data: Data, type: UTType, metadataBuilder: DocumentMetadataBuilder) async throws -> (nodes: [SemanticNode], metadata: DocumentMetadata)
     
     /// 이 파서가 주어진 `UTType`을 처리할 수 있는지 확인합니다.
     /// - Parameter type: 확인할 파일의 `UTType`

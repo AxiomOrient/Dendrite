@@ -430,7 +430,6 @@ OCR(광학 문자 인식) 기능을 위한 유틸리티 네임스페이스입니
 *   `var creationDate: Date?`
 *   `var modificationDate: Date?`
 *   `var links: [String]?`
-*   `var processingTime: TimeInterval?`
 *   `var sourceDetails: SourceSpecificMetadata?`: 파일 형식별 고유 메타데이터.
 
 #### `public enum DocumentMetadata.SourceSpecificMetadata: Sendable`

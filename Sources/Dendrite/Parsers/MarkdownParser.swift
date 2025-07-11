@@ -1,203 +1,262 @@
 // Sources/Dendrite/Parsers/MarkdownParser.swift
 
 import Foundation
-import UniformTypeIdentifiers
 import Markdown
+import UniformTypeIdentifiers
 
-/// `swift-markdown` 라이브러리를 기반으로 Markdown 문서를 파싱하여 구조적인 메타데이터까지 추출하는 파서입니다.
-struct MarkdownParser: ParserProtocol {
-
-    // MARK: - Properties
-
-    public let supportedTypes: [UTType] = [
-        UTType("net.daringfireball.markdown")
-    ].compactMap { $0 }
-
-    // MARK: - ParserProtocol Implementation
-
-    public func parse(data: Data, type: UTType) async throws -> ParsedDocument {
-        guard let markdownString = String(data: data, encoding: .utf8) else {
+/// 통합된 `DocumentMetadata` 구조에 맞춰 `swift-markdown` AST를 직접 순회하는 지능형 파서입니다.
+public final class MarkdownParser: ParserProtocol, @unchecked Sendable {
+    
+    public let supportedTypes: [UTType] = [UTType("net.daringfireball.markdown") ?? .plainText]
+    
+    public func parse(data: Data, type: UTType, metadataBuilder: DocumentMetadataBuilder) async throws -> (nodes: [SemanticNode], metadata: DocumentMetadata) {
+        guard let markdownText = String(data: data, encoding: .utf8) else {
             throw DendriteError.decodingFailed(encoding: "UTF-8")
         }
-
-        try Task.checkCancellation()
-
-        let document = Document(parsing: markdownString)
-
-        // 1. 콘텐츠 추출: 내장된 `plainText` 속성을 사용할 수 없으므로, 직접 구현한 Walker를 사용합니다。
-        var contentWalker = ContentExtractor()
-        contentWalker.visit(document)
-        let content = contentWalker.plainText
-
-        // 2. 메타데이터 추출: 별도의 Walker를 사용하여 구조적 정보만 추출합니다。
-        var metadataWalker = MetadataExtractor()
-        metadataWalker.visit(document)
         
-        var tableExtractor = TableExtractor()
-        tableExtractor.visit(document)
-
-        var metadata = DocumentMetadata()
-        metadata.title = metadataWalker.title
-        metadata.links = metadataWalker.links.isEmpty ? nil : metadataWalker.links
-
-        // Markdown 고유 메타데이터를 설정합니다.
-        let mdMeta = DocumentMetadata.MarkdownMetadata(
-            outline: metadataWalker.outline.isEmpty ? nil : metadataWalker.outline,
-            tables: tableExtractor.tables.isEmpty ? nil : tableExtractor.tables
-        )
-        metadata.sourceDetails = .markdown(mdMeta)
-
-        return ParsedDocument(
-            content: content,
-            metadata: metadata
+        let (frontMatterString, contentString) = extractFrontMatter(from: markdownText)
+        let preprocessedMatter = preprocessFrontMatter(frontMatterString)
+        let frontMatterData = parseFrontMatter(preprocessedMatter)
+        
+        let document = Document(parsing: contentString)
+        let processor = ASTProcessor(frontMatter: frontMatterData, metadataBuilder: metadataBuilder)
+        let (nodes, metadata) = processor.process(document)
+        
+        return (nodes, metadata)
+    }
+    
+    /// YAML Front Matter 블록을 추출하고, 나머지 콘텐츠를 반환합니다.
+    private func extractFrontMatter(from text: String) -> (matter: String, content: String) {
+        guard let regex = try? NSRegularExpression(pattern: #"^---\s*\n([\s\S]*?)\s*\n---"#, options: [.dotMatchesLineSeparators]) else {
+            return ("", text)
+        }
+        
+        let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: nsrange),
+              match.numberOfRanges >= 2,
+              let frontMatterRange = Range(match.range(at: 1), in: text),
+              let blockRange = Range(match.range(at: 0), in: text) else {
+            return ("", text)
+        }
+        
+        let matter = String(text[frontMatterRange])
+        let content = String(text[blockRange.upperBound...])
+        return (matter, content)
+    }
+    
+    /// 일반적인 YAML 오류(예: 따옴표 없는 문자열)를 수정하는 전처리 단계입니다.
+    private func preprocessFrontMatter(_ matter: String) -> String {
+        return matter.split(whereSeparator: \.isNewline).map { line in
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            // 키: 값 형식이며, 값이 특수문자로 시작하지 않는 경우 따옴표 추가
+            let parts = trimmedLine.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { return String(line) }
+            
+            let key = parts[0].trimmingCharacters(in: .whitespaces)
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+            
+            if !value.isEmpty && !value.hasPrefix("[") && !value.hasPrefix("{") && !value.hasPrefix("'") && !value.hasPrefix("\"") && !value.hasPrefix("-") {
+                return "\(key): \"\(value.replacingOccurrences(of: "\"", with: "\\\""))\""
+            }
+            return String(line)
+        }.joined(separator: "\n")
+    }
+    
+    /// 다양한 형식의 날짜 문자열을 Date 객체로 정규화합니다.
+    private func normalizeDate(from value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "'", with: "")
+        
+        // ISO 8601 형식을 가장 먼저 시도
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds, .withFullDate]
+        if let date = isoFormatter.date(from: trimmed) { return date }
+        
+        // YYYY-MM-DD 형식
+        let ymdFormatter = DateFormatter()
+        ymdFormatter.dateFormat = "yyyy-MM-dd"
+        if let date = ymdFormatter.date(from: trimmed) { return date }
+        
+        // 기타 일반적인 형식들 (예: DD-MM-YY)
+        let dmyFormatter = DateFormatter()
+        dmyFormatter.dateFormat = "dd-MM-yy"
+        if let date = dmyFormatter.date(from: trimmed) { return date }
+        
+        dmyFormatter.dateFormat = "dd/MM/yy"
+        if let date = dmyFormatter.date(from: trimmed) { return date }
+        
+        dmyFormatter.dateFormat = "dd.MM.yy"
+        if let date = dmyFormatter.date(from: trimmed) { return date }
+        
+        return nil
+    }
+    
+    /// Front Matter 문자열을 파싱하여 구조화된 데이터를 반환합니다.
+    private func parseFrontMatter(_ matter: String) -> FrontMatterData {
+        var properties: [String: String] = [:]
+        var keywords: [String] = []
+        var creationDate: Date?
+        var modificationDate: Date?
+        
+        let lines = matter.split(whereSeparator: \.isNewline)
+        
+        for line in lines {
+            let parts = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count == 2 else { continue }
+            
+            let key = parts[0].lowercased()
+            let value = String(parts[1])
+            
+            switch key {
+            case "keywords":
+                keywords = value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            case "date", "creationdate":
+                creationDate = normalizeDate(from: value)
+            case "modificationdate":
+                modificationDate = normalizeDate(from: value)
+            default:
+                properties[key] = value.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            }
+        }
+        
+        return FrontMatterData(
+            properties: properties,
+            keywords: keywords,
+            creationDate: creationDate,
+            modificationDate: modificationDate
         )
     }
 }
 
-// MARK: - Private Extractors
+// MARK: - Supporting Types
 
-private extension MarkdownParser {
-
-    /// Markdown 문서에서 순수 텍스트 콘텐츠를 추출하는 Walker입니다.
-    struct ContentExtractor: Markdown.MarkupWalker {
-        var plainText: String = ""
-
-        mutating func visitText(_ text: Text) {
-            plainText.append(text.string)
+private struct FrontMatterData: Sendable {
+    let properties: [String: String]
+    let keywords: [String]
+    let creationDate: Date?
+    let modificationDate: Date?
+    
+    var title: String? { properties["title"] }
+    var author: String? { properties["author"] }
+    var description: String? { properties["description"] }
+    
+    var asDictionary: [String: String] {
+        var dict = properties
+        if !keywords.isEmpty {
+            dict["keywords"] = keywords.joined(separator: ", ")
         }
-
-        mutating func visitParagraph(_ paragraph: Paragraph) {
-            if !plainText.isEmpty && !plainText.hasSuffix("\n\n") {
-                 plainText.append("\n\n")
-            }
-            descendInto(paragraph)
-        }
-
-        mutating func visitBlockQuote(_ blockQuote: BlockQuote) {
-            if !plainText.isEmpty && !plainText.hasSuffix("\n\n") {
-                 plainText.append("\n\n")
-            }
-            descendInto(blockQuote)
-        }
-
-        mutating func visitListItem(_ listItem: ListItem) {
-            if !plainText.isEmpty && !plainText.hasSuffix("\n") {
-                 plainText.append("\n")
-            }
-            descendInto(listItem)
-        }
-
-        mutating func visitCodeBlock(_ codeBlock: CodeBlock) {
-            plainText.append("```\n")
-            plainText.append(codeBlock.code)
-            plainText.append("\n```\n\n")
-        }
-
-        mutating func visitInlineCode(_ inlineCode: InlineCode) {
-            plainText.append("`")
-            plainText.append(inlineCode.code)
-            plainText.append("`")
-        }
-        
-        // 테이블은 구조화된 데이터로 메타데이터에 저장되므로,
-        // ContentExtractor에서는 텍스트로 포함하지 않습니다.
-        mutating func visitTable(_ table: Table) {
-            // Do nothing, as table content is extracted separately for metadata
-        }
-
-        mutating func defaultVisit(_ markup: Markup) {
-            descendInto(markup)
-        }
+        return dict
     }
+}
 
-    /// Markdown 문서에서 구조적 메타데이터(제목, 개요, 링크)만 추출하는 Walker입니다.
-    struct MetadataExtractor: MarkupWalker {
-        private(set) var title: String? // 첫 H1을 제목으로 사용
-        private(set) var outline: [String] = []
-        private(set) var links: [String] = []
+// MARK: - ASTProcessor
 
-        mutating func visitHeading(_ heading: Heading) {
-            if heading.level == 1 && title == nil { // 첫 H1을 제목으로 설정
-                title = heading.plainText
-            }
-            outline.append(heading.plainText)
-            descendInto(heading)
-        }
-
-        mutating func visitLink(_ link: Link) {
-            if let destination = link.destination {
-                links.append(destination)
-            }
-            descendInto(link)
-        }
-
-        mutating func defaultVisit(_ markup: Markup) {
-            descendInto(markup)
+private final class ASTProcessor {
+    private let frontMatter: FrontMatterData
+    private let metadataBuilder: DocumentMetadataBuilder
+    
+    private var links: Set<URL> = []
+    private var outline: [OutlineItem] = []
+    private var tables: [TableMetadata] = []
+    private var codeBlocks: [CodeBlockMetadata] = []
+    
+    init(frontMatter: FrontMatterData, metadataBuilder: DocumentMetadataBuilder) {
+        self.frontMatter = frontMatter
+        self.metadataBuilder = metadataBuilder
+    }
+    
+    func process(_ document: Document) -> (nodes: [SemanticNode], metadata: DocumentMetadata) {
+        let nodes = processChildren(Array(document.children))
+        
+        let markdownMetadata = SourceSpecificMetadata.MarkdownMetadata(
+            outline: outline,
+            tables: tables,
+            codeBlocks: codeBlocks,
+            frontMatter: frontMatter.asDictionary
+        )
+        
+        let metadata = metadataBuilder
+            .title(frontMatter.title ?? outline.first?.title)
+            .author(frontMatter.author)
+            .description(frontMatter.description)
+            .keywords(Set(frontMatter.keywords))
+            .creationDate(frontMatter.creationDate)
+            .modificationDate(frontMatter.modificationDate)
+            .links(links)
+            .sourceDetails(.markdown(markdownMetadata))
+            .build()
+        
+        return (nodes, metadata)
+    }
+    
+    private func processChildren(_ children: [any Markup]) -> [SemanticNode] {
+        children.compactMap(visit)
+    }
+    
+    private func visit(_ markup: Markup) -> SemanticNode? {
+        let range = convertSourceRange(from: markup)
+        
+        switch markup {
+        case let heading as Heading: return processHeading(heading, range: range)
+        case let paragraph as Paragraph: return .paragraph(children: processChildren(Array(paragraph.children)), range: range)
+        case let blockquote as BlockQuote: return .blockquote(children: processChildren(Array(blockquote.children)), range: range)
+        case let codeBlock as CodeBlock: return processCodeBlock(codeBlock, range: range)
+        case let list as UnorderedList: return .list(isOrdered: false, items: processChildren(Array(list.listItems)), range: range)
+        case let list as OrderedList: return .list(isOrdered: true, items: processChildren(Array(list.listItems)), range: range)
+        case let listItem as ListItem: return .listItem(children: processChildren(Array(listItem.children)), range: range)
+        case is ThematicBreak: return .thematicBreak(range: range)
+        case let table as Table: return processTable(table, range: range)
+        case let link as Link: return processLink(link)
+        case let image as Image: return .image(source: image.source, alt: image.plainText)
+        case let text as Text: return .text(text.string)
+        case let emphasis as Emphasis: return .emphasis(children: processChildren(Array(emphasis.children)))
+        case let strong as Strong: return .strong(children: processChildren(Array(strong.children)))
+        case let inlineCode as InlineCode: return .inlineCode(inlineCode.code)
+        default: return processGenericMarkup(markup, range: range)
         }
     }
     
-    /// Markdown 문서에서 테이블 데이터를 추출하는 Walker입니다. (관용적 사용법 적용)
-    struct TableExtractor: MarkupWalker {
-        private(set) var tables: [DocumentMetadata.TableData] = []
+    // MARK: - Specialized Processing Methods
+    
+    private func processHeading(_ heading: Heading, range: SourceRange?) -> SemanticNode {
+        outline.append(OutlineItem(level: heading.level, title: heading.plainText, anchor: nil))
+        return .heading(level: heading.level, text: heading.plainText, range: range)
+    }
+    
+    private func processCodeBlock(_ codeBlock: CodeBlock, range: SourceRange?) -> SemanticNode {
+        codeBlocks.append(CodeBlockMetadata(language: codeBlock.language, lineCount: codeBlock.code.components(separatedBy: .newlines).count, hasHighlighting: codeBlock.language != nil))
+        return .codeBlock(language: codeBlock.language, code: codeBlock.code, range: range)
+    }
+    
+    private func processTable(_ table: Table, range: SourceRange?) -> SemanticNode {
+        let headers = Array(table.head.cells.map { $0.plainText })
+        let rows = Array(table.body.rows.map { Array($0.cells.map { $0.plainText }) })
         
-        // 현재 파싱 중인 테이블의 상태를 저장하는 내부 변수
-        private var currentHeaders: [String]?
-        private var currentRows: [[String]]? = []
-        private var currentRow: [String]?
-        private var isInHeader = false
-
-        // <table> 태그를 방문할 때 호출됨
-        mutating func visitTable(_ table: Markdown.Table) {
-            // 새 테이블 시작 시 상태 초기화
-            currentHeaders = nil
-            currentRows = []
-            
-            // 워커에게 자식 노드(Head, Body) 순회를 맡김
-            descendInto(table)
-            
-            // 테이블 순회가 끝나면 완성된 데이터를 저장
-            if let headers = currentHeaders, let rows = currentRows {
-                tables.append(.init(headers: headers, rows: rows))
-            }
-            
-            // 상태 변수 정리
-            currentHeaders = nil
-            currentRows = nil
-        }
-
-        // <thead> 태그를 방문할 때 호출됨
-        mutating func visitTableHead(_ tableHead: Markdown.Table.Head) {
-            isInHeader = true
-            descendInto(tableHead) // 헤더 내부의 자식 노드(Row) 순회
-            isInHeader = false
-        }
+        tables.append(TableMetadata(caption: nil, headers: headers, rowCount: rows.count, columnCount: headers.count))
         
-        // <tbody> 태그를 방문할 때 호출됨
-        mutating func visitTableBody(_ tableBody: Markdown.Table.Body) {
-            descendInto(tableBody) // 본문 내부의 자식 노드(Row) 순회
+        return .table(caption: nil, headers: headers, rows: rows, range: range)
+    }
+    
+    private func processLink(_ link: Link) -> SemanticNode {
+        if let destination = link.destination, let url = URL(string: destination) { links.insert(url) }
+        return .link(destination: link.destination, children: processChildren(Array(link.children)))
+    }
+    
+    private func processGenericMarkup(_ markup: Markup, range: SourceRange?) -> SemanticNode? {
+        let children = processChildren(Array(markup.children))
+        switch children.count {
+        case 0: return nil
+        case 1: return children.first
+        default: return .paragraph(children: children, range: range)
         }
-
-        // <tr> 태그를 방문할 때 호출됨
-        mutating func visitTableRow(_ tableRow: Markdown.Table.Row) {
-            currentRow = [] // 새 행 시작
-            descendInto(tableRow) // 행 내부의 자식 노드(Cell) 순회
-            
-            if let row = currentRow {
-                if isInHeader {
-                    // 헤더 상태일 경우, 이 행을 헤더로 저장
-                    currentHeaders = row
-                } else {
-                    // 본문 상태일 경우, 이 행을 본문 행 목록에 추가
-                    currentRows?.append(row)
-                }
-            }
-            currentRow = nil // 현재 행 처리 완료
-        }
-
-        // <td> 또는 <th> 태그를 방문할 때 호출됨
-        mutating func visitTableCell(_ tableCell: Markdown.Table.Cell) {
-            // 셀의 순수 텍스트를 추출하여 현재 행에 추가
-            currentRow?.append(tableCell.plainText.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
+    }
+    
+    // MARK: - Utility Methods
+    
+    private func convertSourceRange(from markup: Markup) -> SourceRange? {
+        guard let sourceRange = markup.range else { return nil }
+        
+        let start = SourcePosition(line: sourceRange.lowerBound.line, column: sourceRange.lowerBound.column)
+        let end = SourcePosition(line: sourceRange.upperBound.line, column: sourceRange.upperBound.column)
+        return SourceRange(start: start, end: end)
     }
 }

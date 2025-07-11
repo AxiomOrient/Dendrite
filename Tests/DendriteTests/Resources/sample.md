@@ -69,12 +69,11 @@ Responses prioritize the core of the question without unnecessary pleasantries o
 - **Single Responsibility Functions:** Functions should be small and serve a single, clear purpose to enhance readability and testability.
 - **Descriptive Naming:** All identifiers (variables, functions, classes, etc.) should be named to clearly reveal their role and intent. The following core naming principles apply across all platforms.
 
-|   |   |   |
+| Type | Format | Cross-Platform Example |
 |---|---|---|
-|**Type**|**Format**|**Cross-Platform Example**|
-|**Variables/Functions**|`camelCase`|`userName`, `calculatePrice()`|
-|**Classes/Structs/Types/Enums**|`PascalCase`|`class UserProfile`, `struct Point`, `enum Status`|
-|**Constants**|`SCREAMING_SNAKE_CASE`|`let MAX_RETRIES = 3`, `static final int PORT = 8080`|
+| Variables/Functions | `camelCase` | `userName`, `calculatePrice()` |
+| Classes/Structs/Types/Enums | `PascalCase` | `class UserProfile`, `struct Point`, `enum Status` |
+| Constants | `SCREAMING_SNAKE_CASE` | `let MAX_RETRIES = 3`, `static final int PORT = 8080` |
 
 - **Commenting Principle:** Use concise comments only when necessary to explain the _intent and context ('the why')_ behind a particular implementation, not what the code is doing ('the how'). Do not leave commented-out code or comments that state the obvious.
 

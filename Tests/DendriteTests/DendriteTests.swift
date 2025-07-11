@@ -1,120 +1,165 @@
 
-// Tests/DendriteTests/DendriteTests.swift
-
 import Testing
-import Foundation
 @testable import Dendrite
+import UniformTypeIdentifiers
 
-/// `Dendrite`의 최상위 API와 각 파서의 통합 동작을 검증하는 테스트 스위트입니다.
-@Suite("Dendrite API & Parser Integration Tests", .tags(.integration))
-final class DendriteTests {
+@Suite("Dendrite Core Tests")
+struct DendriteTests {
 
-    // MARK: - Success Cases (Happy Path)
+    var tokenizer: AppleNLTokenizer!
 
-    /// **의도:** 유효한 Markdown 파일로부터 콘텐츠와 메타데이터를 정확히 추출하는지 검증합니다.
-    @Test("Markdown 파싱 성공",
-          .tags(.fast))
-    func testMarkdownParsing_success() async throws {
-        // Arrange
-        let url = try fixture(name: "sample.md")
-        
-        // Act
-        let document = try await Dendrite.parse(from: url)
-        
-        // Assert
-        #expect(document.content.contains("This is a test document."))
-        #expect(document.metadata.title == "Preamble: AI Communication Foundational Principles")
-        #expect(document.metadata.links?.contains("https://www.google.com") == true)
+    init() {
+        tokenizer = AppleNLTokenizer()
     }
 
-    /// **의도:** 일반 텍스트 파일의 원본 콘텐츠를 정확히 반환하는지 검증합니다.
-    @Test("PlainText 파싱 성공",
-          .tags(.fast))
-    func testPlainTextParsing_success() async throws {
-        // Arrange
-        let url = try fixture(name: "sample.txt")
-        
-        // Act
-        let document = try await Dendrite.parse(from: url)
-        
-        // Assert
-        #expect(document.content.contains("AI와 함께하는 당신만의 생기 넘치는 하루 여정"))
-        #expect(document.metadata.title == nil)
-    }
-    
-    /// **의도:** 복잡한 HTML 파일로부터 의미있는 콘텐츠만 Markdown으로 변환하는지 검증합니다.
-    @Test("HTML 파싱 성공",
-          .tags(.fast))
-    func testHTMLParsing_success() async throws {
-        // Arrange
-        let url = try fixture(name: "agent.html")
-        
-        // Act
-        let document = try await Dendrite.parse(from: url)
-        
-        // Assert
-        #expect(document.content.contains("AI 아키텍처 가이드"))
-        #expect(document.content.contains("차세대 AI, Python을 넘어서"))
-        #expect(document.content.contains("프로덕션의 핵심으로 자리 잡으면서"))
-        #expect(document.content.contains("Google Vertex AI:"))
-        #expect(!document.content.contains("<script>"))
-    }
-
-    // MARK: - Failure Cases (Unhappy Path)
-
-    /// **의도:** 지원하지 않는 파일 타입에 대해 `unsupportedFileType` 오류를 던지는지 검증합니다.
-    @Test("오류: 지원하지 않는 파일 타입",
-          .tags(.fast))
-    func testParsing_throwsUnsupportedFileType() async throws {
-        // Arrange
-        let url = try fixture(name: "unsupported.zip")
-        
-        // Act
-        let thrownError = try await #require(throws: DendriteError.self) {
-            _ = try await Dendrite.parse(from: url)
+    @Test("마크다운 문서 처리 및 청크 검증", .tags(.integration, .chunking, .parser))
+    func testMarkdownProcessing() async throws {
+        // Given
+        guard let url = Bundle.module.url(forResource: "sample", withExtension: "md") else {
+            Issue.record("Could not find sample.md in test bundle.")
+            throw FixtureError(path: "sample.md", message: "Test resource not found.")
         }
-        
-        // Assert
-        guard case .unsupportedFileType(let fileExtension) = thrownError else {
-            #expect(Bool(false), "예상과 다른 오류가 발생했습니다: \(thrownError)")
-            return
-        }
-        #expect(fileExtension == "zip")
-    }
-    
-    /// **의도:** 존재하지 않는 파일 경로에 대해 `fileReadFailed` 오류를 던지는지 검증합니다.
-    @Test("오류: 존재하지 않는 파일",
-          .tags(.fast))
-    func testParsing_throwsFileReadFailed() async throws {
-        // Arrange
-        let url = URL(fileURLWithPath: "/non/existent/path/file.txt")
-        
+
         // Act
-        let thrownError = try await #require(throws: DendriteError.self) {
-            _ = try await Dendrite.parse(from: url)
-        }
-        
+        let processedDocument = try await Dendrite.process(from: url, tokenizer: tokenizer)
+
         // Assert
-        guard case .fileReadFailed(let failedURL, _) = thrownError else {
-            #expect(Bool(false), "예상과 다른 오류가 발생했습니다: \(thrownError)")
-            return
-        }
-        #expect(failedURL == url)
-    }
-    
-    /// **의도:** 손상된 PDF 파일에 대해 `pdfDocumentLoadFailure` 오류를 던지는지 검증합니다.
-    @Test("오류: 손상된 PDF 파일",
-          .tags(.fast))
-    func testParsing_throwsParsingFailedForCorruptedPDF() async throws {
-        // Arrange
-        let url = try fixture(name: "corrupted.pdf")
+        #expect(processedDocument.id.value == "sample.md")
+        #expect(processedDocument.nodes.count > 0)
+        #expect(processedDocument.chunks.count > 0)
+        #expect(processedDocument.statistics.totalTokenCount.value > 0)
         
+        #expect(processedDocument.metadata.title == "Preamble: AI Communication Foundational Principles")
+        #expect(processedDocument.metadata.links.contains(URL(string: "https://www.google.com")!))
+        
+        guard case .markdown(let markdownMeta) = processedDocument.metadata.sourceDetails else {
+            Issue.record("Source details should be MarkdownMetadata.")
+            throw TestError(description: "Invalid source details type.")
+        }
+        #expect(!markdownMeta.outline.isEmpty, "개요가 파싱되어야 합니다.")
+        #expect(!markdownMeta.tables.isEmpty, "테이블이 최소 1개 이상 파싱되어야 합니다.")
+
+        // 첫 번째 테이블 검증
+        let firstTable = try #require(markdownMeta.tables.first)
+        #expect(firstTable.headers == ["Principle", "What It Means in Practice"])
+        #expect(firstTable.rowCount == 4)
+
+        // 청크 내용 검증 (일부)
+        let firstChunk = try #require(processedDocument.chunks.first)
+        #expect(firstChunk.content.contains("This is a test document."))
+        #expect(firstChunk.tokenCount.value > 0)
+        #expect(firstChunk.breadcrumb.path.contains("Preamble"))
+    }
+
+    @Test("HTML 문서 처리 및 청크 검증", .tags(.integration, .chunking, .parser))
+    func testHTMLProcessing() async throws {
+        // Given
+        guard let url = Bundle.module.url(forResource: "agent", withExtension: "html") else {
+            Issue.record("Could not find agent.html in test bundle.")
+            throw FixtureError(path: "agent.html", message: "Test resource not found.")
+        }
+
         // Act
-        let thrownError = try await #require(throws: DendriteError.self) {
-            _ = try await Dendrite.parse(from: url)
-        }
-        
+        let processedDocument = try await Dendrite.process(from: url, tokenizer: tokenizer)
+
         // Assert
-        #expect(thrownError == .pdfDocumentLoadFailure, "예상했던 pdfDocumentLoadFailure 오류가 아닙니다: \(thrownError)")
+        #expect(processedDocument.id.value == "agent.html")
+        #expect(processedDocument.nodes.count > 0)
+        #expect(processedDocument.chunks.count > 0)
+        #expect(processedDocument.statistics.totalTokenCount.value > 0)
+        #expect(processedDocument.metadata.title == "Agent - Wikipedia")
+        #expect(processedDocument.metadata.links.contains(URL(string: "https://en.wikipedia.org/wiki/Agent")!))
     }
+
+    @Test("Plain Text 문서 처리 및 청크 검증", .tags(.integration, .chunking, .parser))
+    func testPlainTextProcessing() async throws {
+        // Given
+        guard let url = Bundle.module.url(forResource: "sample", withExtension: "txt") else {
+            Issue.record("Could not find sample.txt in test bundle.")
+            throw FixtureError(path: "sample.txt", message: "Test resource not found.")
+        }
+
+        // Act
+        let processedDocument = try await Dendrite.process(from: url, tokenizer: tokenizer)
+
+        // Assert
+        #expect(processedDocument.id.value == "sample.txt")
+        #expect(processedDocument.nodes.count == 1)
+        #expect(processedDocument.chunks.count == 1)
+        #expect(processedDocument.statistics.totalTokenCount.value > 0)
+        #expect(processedDocument.metadata.title == nil)
+        #expect(processedDocument.chunks.first?.content.contains("This is a sample plain text document.") == true)
+    }
+
+    @Test("PDF 문서 처리 및 청크 검증", .tags(.integration, .chunking, .parser, .slow))
+    func testPDFProcessing() async throws {
+        // Given
+        guard let url = Bundle.module.url(forResource: "sample", withExtension: "pdf") else {
+            Issue.record("Could not find sample.pdf in test bundle.")
+            throw FixtureError(path: "sample.pdf", message: "Test resource not found.")
+        }
+
+        // Act & Assert
+        await #expect(throws: DendriteError.self) {
+            _ = try await Dendrite.process(from: url, tokenizer: tokenizer)
+        } 
+    }
+
+    @Test("이미지 PDF 문서 처리 및 청크 검증", .tags(.integration, .chunking, .parser, .slow))
+    func testImagePDFProcessing() async throws {
+        // Given
+        guard let url = Bundle.module.url(forResource: "sample_image", withExtension: "pdf") else {
+            Issue.record("Could not find sample_image.pdf in test bundle.")
+            throw FixtureError(path: "sample_image.pdf", message: "Test resource not found.")
+        }
+
+        // Act & Assert
+        await #expect(throws: DendriteError.self) {
+            _ = try await Dendrite.process(from: url, tokenizer: tokenizer)
+        }
+    }
+
+    @Test("지원하지 않는 파일 타입 처리", .tags(.unit, .parser))
+    func testUnsupportedFileType() async throws {
+        // Given
+        guard let url = Bundle.module.url(forResource: "unsupported", withExtension: "zip") else {
+            Issue.record("Could not find unsupported.zip in test bundle.")
+            throw FixtureError(path: "unsupported.zip", message: "Test resource not found.")
+        }
+
+        // Act & Assert
+        await #expect(throws: DendriteError.self) {
+            _ = try await Dendrite.process(from: url, tokenizer: tokenizer)
+        } 
+    }
+
+    @Test("손상된 PDF 파일 처리", .tags(.unit, .parser, .slow))
+    func testCorruptedPDF() async throws {
+        // Given
+        guard let url = Bundle.module.url(forResource: "corrupted", withExtension: "pdf") else {
+            Issue.record("Could not find corrupted.pdf in test bundle.")
+            throw FixtureError(path: "corrupted.pdf", message: "Test resource not found.")
+        }
+
+        // Act & Assert
+        await #expect(throws: DendriteError.self) {
+            _ = try await Dendrite.process(from: url, tokenizer: tokenizer)
+        } 
+    }
+
+    @Test("파일 읽기 실패 처리", .tags(.unit, .parser))
+    func testFileReadFailed() async throws {
+        // Given: A non-existent URL
+        let nonExistentURL = URL(fileURLWithPath: "/path/to/nonexistent/file.txt")
+
+        // Act & Assert
+        await #expect(throws: DendriteError.self) {
+            _ = try await Dendrite.process(from: nonExistentURL, tokenizer: tokenizer)
+        }
+    }
+}
+
+// MARK: - Helper for TestError
+struct TestError: Error, CustomStringConvertible {
+    let description: String
 }

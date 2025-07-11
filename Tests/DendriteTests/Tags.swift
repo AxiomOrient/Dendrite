@@ -15,6 +15,8 @@ extension Tag {
     @Tag static var view: Self
     @Tag static var network: Self
     @Tag static var storage: Self
+    @Tag static var parser: Self // Added parser tag
+    @Tag static var chunking: Self // Added chunking tag
 
     // MARK: Performance
     @Tag static var fast: Self
